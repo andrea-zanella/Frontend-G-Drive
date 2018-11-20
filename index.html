@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Drive API Test </title>
+    <meta charset="utf-8" />
+
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+ 
+    <head>
+      <style>
+        .navbar-default {
+          background-color: black;
+          line-height: 50px;
+        }
+      </style>
+    </head>
+ 
+  </head>
+  <body>
+    <!--Add buttons to initiate auth sequence and sign out-->
+    <nav class="navbar navbar-default">
+        <div class="container-fluid">
+          <div class="navbar-header">
+            <a class="navbar-left"><img src="#"></a>
+          </div>
+          <ul class="nav navbar-nav">
+            <li><button id="home_button" class="btn btn-link" style="color: white;text-align: center; line-height: 41px;" onclick="listFiles(CURRENT_FOLDER = PARENT_FOLDER);">Home</button></li>
+            <li><button id="authorize_button" class="btn btn-link" style="color: white;text-align: center; line-height: 41px;">Authorize</button></li>
+            <li><button id="signout_button" class="btn btn-link" style="color: white; text-align: center; line-height: 41px;">Sign Out</button></li>
+          </ul>
+        </div>
+      </nav>
+    
+    <form class="form-inline">
+      <input type="text" id="txtSearch" class="form-control" style="width: 350px"/>
+      <input type="button" id="btnSearch" value="Search" class="btn btn-primary" onclick="updateResult(txtSearch.value)" />
+    </form>
+    <br>
+
+    <script>
+      var input = document.getElementById("txtSearch");
+      input.addEventListener("keyup", function(event) {
+          event.preventDefault();
+          if (event.keyCode === 13) {
+              document.getElementById("btnSearch").click();
+          }
+      });
+    </script>
+
+    <div id="list">
+
+    </div>
+
+    <script type="text/javascript">
+      // Client ID and API key from the Developer Console
+      var CLIENT_ID = '';   //Insert the client id here
+      var API_KEY = '';     //Insert thee API key here
+
+      var PARENT_FOLDER = "'****' in parents" //replace **** with your folder id
+      var CURRENT_FOLDER = PARENT_FOLDER
+
+      // Array of API discovery doc URLs for APIs used by the quickstart
+      var DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"];
+
+      // Authorization scopes required by the API; multiple scopes can be
+      // included, separated by spaces.
+      var SCOPES = 'https://www.googleapis.com/auth/drive.metadata.readonly';
+
+      var authorizeButton = document.getElementById('authorize_button');
+      var signoutButton = document.getElementById('signout_button');
+      var homeButton = document.getElementById('home_button');
+
+      /**
+       *  On load, called to load the auth2 library and API client library.
+       */
+      function handleClientLoad() {
+        gapi.load('client:auth2', initClient);
+      }
+
+      /**
+       *  Initializes the API client library and sets up sign-in state
+       *  listeners.
+       */
+      function initClient() {
+        gapi.client.init({
+          apiKey: API_KEY,
+          clientId: CLIENT_ID,
+          discoveryDocs: DISCOVERY_DOCS,
+          scope: SCOPES
+        }).then(function () {
+          // Listen for sign-in state changes.
+          gapi.auth2.getAuthInstance().isSignedIn.listen(updateSigninStatus);
+
+          // Handle the initial sign-in state.
+          updateSigninStatus(gapi.auth2.getAuthInstance().isSignedIn.get());
+          authorizeButton.onclick = handleAuthClick;
+          signoutButton.onclick = handleSignoutClick;
+        });
+      }
+
+      /**
+       *  Called when the signed in status changes, to update the UI
+       *  appropriately. After a sign-in, the API is called.
+       */
+      function updateSigninStatus(isSignedIn) {
+        if (isSignedIn) {
+          authorizeButton.style.display = 'none';
+          signoutButton.style.display = 'block';
+          homeButton.style.display = 'block';
+          listFiles(PARENT_FOLDER);
+        } else {
+          authorizeButton.style.display = 'block';
+          signoutButton.style.display = 'none';
+          homeButton.style.display = 'none';
+        }
+      }
+
+      //searchbar function
+
+      function updateResult(query) {
+        console.log(query);
+        gapi.client.drive.files.list({
+         // 'pageSize': 999,
+          'fields': "nextPageToken, files(id, name, webContentLink, webViewLink, kind, modifiedTime, owners, iconLink, mimeType)",
+          'q' : "name contains '"+query+"' and" + CURRENT_FOLDER
+        }).then(function(response) {
+          document.getElementById("list").innerHTML = "";
+          var files = response.result.files;
+
+          if (files && files.length > 0) {
+            printFiles(files);
+            }
+          });
+      }
+
+      /**
+       *  Sign in the user upon button click.
+       */
+      function handleAuthClick(event) {
+        gapi.auth2.getAuthInstance().signIn();
+      }
+
+      /**
+       *  Sign out the user upon button click.
+       */
+      function handleSignoutClick(event) {
+        document.getElementById("list").innerHTML = "";
+        gapi.auth2.getAuthInstance().signOut();
+      }
+
+      //compare funct
+      function compare(a,b) {
+        if (a.name < b.name)
+          return -1;
+        if (a.name > b.name)
+          return 1;
+        return 0;
+      }
+
+      /**
+       * Print files.
+       */
+      function listFiles(folderName) {
+        gapi.client.drive.files.list({
+         // 'pageSize': 999,
+          'fields': "nextPageToken, files(id, name, webContentLink, webViewLink, kind, modifiedTime, owners, iconLink, mimeType)",
+          'q' : folderName
+        }).then(function(response) {
+          document.getElementById("list").innerHTML = "";
+          var files = response.result.files;
+
+          if (files && files.length > 0) {
+            printFiles(files);
+          }
+        });
+      }
+      
+      //list my files
+      function printFiles (files) {
+        files.sort(compare);
+        let table = document.createElement('table');
+        table.setAttribute("class", "table table-striped");
+
+        var row = table.insertRow(-1);
+        var headerCell = document.createElement("TH");
+        headerCell.innerHTML = "Type";
+        row.appendChild(headerCell);
+        var headerCell = document.createElement("TH");
+        headerCell.innerHTML = "Filename";
+        row.appendChild(headerCell);
+        var headerCell = document.createElement("TH");
+        headerCell.innerHTML = "Owner";
+        row.appendChild(headerCell);
+        var headerCell = document.createElement("TH");
+        headerCell.innerHTML = "Last modified";
+        row.appendChild(headerCell);
+
+
+        for (var i = 0; i < files.length; i++) {
+          table.insertRow();
+          let newCell1 = table.rows[table.rows.length - 1].insertCell();
+          let newCell2 = table.rows[table.rows.length - 1].insertCell();
+          let newCell3 = table.rows[table.rows.length - 1].insertCell();
+          let newCell4 = table.rows[table.rows.length - 1].insertCell();
+
+          if(files[i].mimeType.includes("folder")){      //folder
+            var button = document.createElement('button');
+            button.innerHTML = files[i].name;
+            button.value = files[i].webViewLink;
+            button.setAttribute("class", "btn-link");
+
+            button.onclick = function(){
+              var f = (this.value.split('folders/')[1]);
+              var s = "'"+f+"'"+ " in parents"
+              CURRENT_FOLDER = s
+
+              gapi.client.drive.files.list({
+                //'pageSize': 999,
+                'fields': "nextPageToken, files(id, name, webContentLink, webViewLink, kind, modifiedTime, owners, iconLink, mimeType)",
+                'q' : s
+              }).then(function(response) {
+                var files = response.result.files;
+                if (files && files.length > 0) {
+                  document.getElementById("list").innerHTML = "";
+                  printFiles(files);
+                }
+              });
+              return false;              
+            };
+          }
+          else{     //file
+            var button = document.createElement('button');
+            button.innerHTML = files[i].name;
+            button.value = files[i].webViewLink;
+            button.setAttribute("class", "btn-link");
+            button.onclick = function(){
+              window.open(this.value,"_blank");
+              return false;
+            };
+          }          
+            var x = document.createElement("IMG");
+            x.setAttribute("src", files[i].iconLink);
+
+            newCell1.appendChild(x);
+            newCell2.appendChild(button);
+            newCell3.textContent = files[i].owners[0].displayName;
+            newCell4.textContent = files[i].modifiedTime;
+        }
+        document.getElementById('list').appendChild(table);
+      }
+    </script>
+
+    <script async defer src="https://apis.google.com/js/api.js"
+      onload="this.onload=function(){};handleClientLoad()"
+      onreadystatechange="if (this.readyState === 'complete') this.onload()">
+    </script>
+  </body>
+</html>
